@@ -8,7 +8,10 @@
 
 package main
 
-import "container/list"
+import (
+	"container/list"
+	"sync"
+)
 
 // CacheSize determines how big the cache can grow
 const CacheSize = 100
@@ -21,6 +24,7 @@ type KeyStoreCacheLoader interface {
 
 // KeyStoreCache is a LRU cache for string key-value pairs
 type KeyStoreCache struct {
+	mutex sync.RWMutex
 	cache map[string]string
 	pages list.List
 	load  func(string) string
@@ -36,11 +40,14 @@ func New(load KeyStoreCacheLoader) *KeyStoreCache {
 
 // Get gets the key from cache, loads it from the source if needed
 func (k *KeyStoreCache) Get(key string) string {
+	k.mutex.RLock()
 	val, ok := k.cache[key]
+	k.mutex.RUnlock()
 
 	// Miss - load from database and save it in cache
 	if !ok {
 		val = k.load(key)
+		k.mutex.Lock()
 		k.cache[key] = val
 		k.pages.PushFront(key)
 
@@ -49,6 +56,7 @@ func (k *KeyStoreCache) Get(key string) string {
 			delete(k.cache, k.pages.Back().Value.(string))
 			k.pages.Remove(k.pages.Back())
 		}
+		k.mutex.Unlock()
 	}
 
 	return val
