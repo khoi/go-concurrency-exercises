@@ -13,10 +13,22 @@
 
 package main
 
+import (
+	"os"
+	"os/signal"
+)
+
 func main() {
 	// Create a process
 	proc := MockProcess{}
 
-	// Run the process (blocking)
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		<-c
+		signal.Reset(os.Interrupt)
+		proc.Stop()
+	}()
+
 	proc.Run()
 }
